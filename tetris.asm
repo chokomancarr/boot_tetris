@@ -17,6 +17,7 @@ start:
     mov cx,0x2000       ;disable cursor
     int 0x10
     
+    ;default data is 0 anyway (probably)
     ;init data
     ;mov bx,0x0a         ;10y
     ;.loopy:
@@ -68,8 +69,8 @@ start:
     jmp .draw
 
 .hit
-    mov si,word[0xfe10]
-    test si,si
+    mov dx,word[0xfe10]
+    test dx,dx
     jz .waitinput
     ;jmp .waitinput
     ;apply block
@@ -77,7 +78,7 @@ start:
     .loophitapply
         call movsim1 ;id in al
         push bx
-        mov bx,0xff4f
+        mov bx,0xff4d
         push ax
         shr al,0x04
         shl al,0x01
@@ -85,8 +86,8 @@ start:
         pop ax
         shl al,0x04
         add bl,al
-        mov si,[0xff45]
-        mov word[bx], si
+        mov dx,[0xff45]
+        mov word[bx],dx
         pop bx
         call dc
         jnz .loophitapply

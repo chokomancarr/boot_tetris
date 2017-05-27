@@ -2,7 +2,7 @@
 play tetris in MBR!
 
 # How-to
- * Compile with NASM
+ * Compile with NASM using command `nasm tetris.asm -f bin -o t.bin`
  * Copy .bin contents to the first sector of your drive (virtual machine recommended)
  * Control with WASD
 
