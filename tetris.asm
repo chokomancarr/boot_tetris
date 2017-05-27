@@ -4,17 +4,17 @@
 start:
     cli
     ;create stack
-    mov eax,0x00
+    xor eax,eax
     mov ss,ax           ;stack 0
     ;mov sp,0xffff       ;stack offset
     sti
     
-    mov ah,0x00
+    xor ah,ah
     mov al,0x0D         ;320x200 16 color graphics (EGA,VGA)
     int 0x10
     
     mov ah,0x01
-    mov cx,0x2000       ;disable cursor
+    mov ch,0x20       ;disable cursor
     int 0x10
     
     ;default data is 0 anyway (probably)
@@ -31,20 +31,72 @@ start:
     ;    test bx,bx
     ;    jnz .loopy
     
-    mov sp,0xff4f
-    push 0x41           ;current block location 0xXY
-    push 0x42
-    push 0x43
-    push 0x53
+    mov sp,0xff4f ;assume front byte is always ff
+    push dword 0x00410042           ;current block location 0xXY
+    ;push 0x42
+    push dword 0x00430053
+    ;push 0x53
     push 0x01
     mov sp,0xff2f
     
 .draw
-    call draw
+    mov bx,0xffff           ;stack index
+    mov dx,0x000a           ;10y
+    .loopy
+        mov cx,0x0008       ;8x
+        .loopx
+            ;mov bx,0xffff
+            sub bl,0x02
+            mov ax,[bx]
+            push bx
+            
+            mov ah,0x0c ;draw pixel
+            ;mov al,0x01
+            xor bh,bh
+            int 0x10
+            
+            pop bx
+            dec cl
+            test cl,cl
+            jnz .loopx
+        dec dl
+        test dl,dl
+        jnz .loopy
+    
+    ;active block
+    call setactbcd ;dx will be overridden anyway
+    .loopcb
+        sub bl,0x02
+        mov ax,[bx]
+        
+        push cx
+        push bx
+        mov cx,ax
+        shr cl,0x04
+        mov dx,ax
+        and dl,0x0f
+        
+        mov ah,0x0c
+        mov al,0x0f
+        xor bh,bh
+        int 0x10
+        
+        pop bx
+        pop cx
+        dec cl
+        test cl,cl
+        jnz .loopcb
     
 .waitinput
     mov word[0xfe10],0x00   ;down command?
-    call get_input
+    
+    mov ah,0x0b
+    int 0x21
+    or al,al
+    jz .waitinput
+    mov ah,0x00
+    int 0x16
+    
     cmp al,0x73 ;s
     je .down
     cmp al,0x61 ;a
@@ -52,12 +104,7 @@ start:
     cmp al,0x64 ;d
     je .right
     jmp .waitinput
-    
-.check
-    ;jmp .apply
-    call is_colliding
-    test al,al
-    jnz .hit
+
 .apply
     mov bx,0xff3f
     mov dx,0xff4f
@@ -72,26 +119,28 @@ start:
     mov dx,word[0xfe10]
     test dx,dx
     jz .waitinput
-    ;jmp .waitinput
     ;apply block
     call setactbcd
     .loophitapply
         call movsim1 ;id in al
         push bx
-        mov bx,0xff4d
-        push ax
-        shr al,0x04
-        shl al,0x01
-        add bl,al
-        pop ax
-        shl al,0x04
-        add bl,al
-        mov dx,[0xff45]
+        call coord2dx
         mov word[bx],dx
         pop bx
-        call dc
+        dec cl
+        test cl,cl
         jnz .loophitapply
-    call newblock
+    ;clear
+    
+    ;newblock
+    mov [0xfe00],sp
+    mov sp,0xff4f
+    push dword 0x00410042           ;current block location 0xXY
+    ;push 0x42
+    push dword 0x00430053
+    ;push 0x53
+    push 0x02
+    mov sp,[0xfe00]
     jmp .draw
 
 .down
@@ -121,101 +170,13 @@ start:
         jnz .looprght
     jmp .check
 
-movsim1:
-    sub bl,0x02
-    sub dl,0x02
-    mov ax,[bx]
-    retn
-movsim2:
-    push bx
-    mov bx,dx
-    mov [bx],ax
-    pop bx
-    call dc
-    retn
-;.check_clear:
-
-draw:
-    mov bx,0xffff           ;stack index
-    mov dx,0x000a           ;10y
-    .loopy
-        mov cx,0x0008       ;8x
-        .loopx
-            ;mov bx,0xffff
-            sub bl,0x02
-            mov ax,[bx]
-            push bx
-            
-            mov ah,0x0c ;draw pixel
-            ;mov al,0x0f
-            mov bh,0x00
-            int 0x10
-            
-            pop bx
-            call dc
-            jnz .loopx
-        dec dl
-        test dl,dl
-        jnz .loopy
-    
-    ;active block
-    call setactbcd ;dx will be overridden anyway
-    .loopcb
-        sub bl,0x02
-        mov ax,[bx]
-        
-        push cx
-        push bx
-        mov cx,ax
-        shr cx,0x04
-        mov dx,ax
-        and dx,0x000f
-        
-        mov ah,0x0c
-        mov al,0x0f
-        mov bh,0x00
-        int 0x10
-        
-        pop bx
-        pop cx
-        call dc
-        jnz .loopcb
-    retn
-
-newblock:
-    mov [0xfe00],sp
-    mov sp,0xff4f
-    push 0x41           ;current block location 0xXY
-    push 0x42
-    push 0x43
-    push 0x53
-    push 0x02
-    mov sp,[0xfe00]
-    retn
-
-has_input:              ; call has_input jz [ ]
-    mov ah,0x0b
-    int 0x21
-    or al,al
-    retn
-
-get_input:              ; key in AL
-    call has_input
-    jz .end
-    ;cmp al,0x19         ;do not read control chars
-    ;jle .cancel
-    mov ah,0x00
-    int 0x16
-.end
-    retn
-
-is_colliding:               ;al = 0xff when colliding
+.check
     mov [0xfe00],sp
     mov bx,0xffff           ;stack index
     mov dl,0x0a           ;10y
-    .loopy
+    .loopcy
         mov cl,0x08       ;8x
-        .loopx
+        .loopcx
             sub bl,0x02
             mov ax,[bx]
             ;test ax,ax
@@ -256,19 +217,47 @@ is_colliding:               ;al = 0xff when colliding
             pop bx
             pop dx
             pop cx
-            call dc
-            jnz .loopx
+            dec cl
+            test cl,cl
+            jnz .loopcx
         dec dl
         test dl,dl
-        jnz .loopy
+        jnz .loopcy
         
     mov sp,[0xfe00]
-    xor al,al
-    retn
+    jmp .apply
     .colld
         mov sp,[0xfe00]
-        mov al,0xff
-        retn
+        jmp .hit
+
+coord2dx:
+    mov bx,0xff4d
+    push ax
+    shr al,0x04
+    shl al,0x01
+    add bl,al
+    pop ax
+    shl al,0x04
+    add bl,al
+    mov dx,[0xff45]
+    retn
+
+movsim1:
+    sub bl,0x02
+    sub dl,0x02
+    mov ax,[bx]
+    retn
+movsim2:
+    push bx
+    mov bx,dx
+    mov [bx],ax
+    pop bx
+    dec cl
+    test cl,cl
+    retn
+
+;is_colliding:               ;al = 0xff when colliding
+    
 
 setactbcd:
     mov bx,0xff4f
@@ -276,10 +265,6 @@ setactbcd:
     mov cl,0x04
     retn
 
-dc:
-    dec cl
-    test cl,cl
-    retn
 
 TIMES 510 - ($ - $$) db 0
 DW 0xAA55
