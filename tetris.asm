@@ -89,8 +89,8 @@ start:
     
 .waitinput
     mov word[0xfe10],0x00   ;down command?
-    
-    mov ah,0x0b
+
+    mov ax,0x0b0f
     int 0x21
     or al,al
     jz .waitinput
@@ -105,16 +105,6 @@ start:
     je .right
     jmp .waitinput
 
-.apply
-    mov bx,0xff3f
-    mov dx,0xff4f
-    mov cl,0x04
-    .loopapply
-        call movsim1
-        call movsim2
-        jnz .loopapply
-    jmp .draw
-
 .hit
     mov dx,word[0xfe10]
     test dx,dx
@@ -124,13 +114,41 @@ start:
     .loophitapply
         call movsim1 ;id in al
         push bx
-        call coord2dx
+        
+        mov bx,0xff4d
+        push ax
+        shr al,0x04
+        shl al,0x01
+        add bl,al
+        pop ax
+        shl al,0x04
+        add bl,al
+        mov dx,[0xff45]
+        
         mov word[bx],dx
         pop bx
         dec cl
         test cl,cl
         jnz .loophitapply
     ;clear
+    ;mov bx,0xffee
+    ;mov dl,0x0a
+    ;.loopcleary
+    ;    mov dh,0x08
+    ;    .loopclearx1
+    ;        mov ax,[bx]
+    ;        add bl,0x02
+    ;        test ax,ax
+    ;        jz .notfilledline
+    ;        dec dh
+    ;        test dh,dh
+    ;        jnz .loopclearx1
+    ;    sub bl,0x10
+        
+    ;    .notfilledline
+    ;    sub dl
+    ;    cmp dl,0x02
+    ;    jne .loopcleary
     
     ;newblock
     mov [0xfe00],sp
@@ -169,6 +187,16 @@ start:
         call movsim2
         jnz .looprght
     jmp .check
+
+.apply
+    mov bx,0xff3f
+    mov dx,0xff4f
+    mov cl,0x04
+    .loopapply
+        call movsim1
+        call movsim2
+        jnz .loopapply
+    jmp .draw
 
 .check
     mov [0xfe00],sp
@@ -224,7 +252,7 @@ start:
         test dl,dl
         jnz .loopcy
         
-    mov sp,[0xfe00]
+    ;mov sp,[0xfe00]
     jmp .apply
     .colld
         mov sp,[0xfe00]
@@ -255,9 +283,6 @@ movsim2:
     dec cl
     test cl,cl
     retn
-
-;is_colliding:               ;al = 0xff when colliding
-    
 
 setactbcd:
     mov bx,0xff4f
