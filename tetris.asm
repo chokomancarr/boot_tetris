@@ -9,11 +9,12 @@ start:
     ;mov sp,0xffff       ;stack offset
     sti
     
-    xor ah,ah
+    ;xor ah,ah          ;eax is already 0
     mov al,0x0D         ;320x200 16 color graphics (EGA,VGA)
     int 0x10
     
-    mov ah,0x01
+    ;mov ah,0x01
+    inc ah
     mov ch,0x20       ;disable cursor
     int 0x10
     
@@ -31,12 +32,7 @@ start:
     ;    test bx,bx
     ;    jnz .loopy
     
-    mov sp,0xff4f ;assume front byte is always ff
-    push dword 0x00410042           ;current block location 0xXY
-    ;push 0x42
-    push dword 0x00430053
-    ;push 0x53
-    push 0x01
+    call newblock
     mov sp,0xff2f
     
 .draw
@@ -44,6 +40,7 @@ start:
     mov dx,0x000a           ;10y
     .loopy
         mov cx,0x0008       ;8x
+        ;mov cl,0x08
         .loopx
             ;mov bx,0xffff
             sub bl,0x02
@@ -51,7 +48,7 @@ start:
             push bx
             
             mov ah,0x0c ;draw pixel
-            ;mov al,0x01
+            ;and al,0x0f
             xor bh,bh
             int 0x10
             
@@ -94,7 +91,7 @@ start:
     int 0x21
     or al,al
     jz .waitinput
-    mov ah,0x00
+    xor ah,ah
     int 0x16
     
     cmp al,0x73 ;s
@@ -151,14 +148,7 @@ start:
     ;    jne .loopcleary
     
     ;newblock
-    mov [0xfe00],sp
-    mov sp,0xff4f
-    push dword 0x00410042           ;current block location 0xXY
-    ;push 0x42
-    push dword 0x00430053
-    ;push 0x53
-    push 0x02
-    mov sp,[0xfe00]
+    call newblock
     jmp .draw
 
 .down
@@ -257,6 +247,17 @@ start:
     .colld
         mov sp,[0xfe00]
         jmp .hit
+
+newblock:
+    mov [0xfe00],sp
+    mov sp,0xff4f
+    push dword 0x00410042           ;current block location 0xXY
+    ;push 0x42
+    push dword 0x00430053
+    ;push 0x53
+    push 0x02
+    mov sp,[0xfe00]
+    retn
 
 coord2dx:
     mov bx,0xff4d
