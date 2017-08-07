@@ -6,10 +6,9 @@ start:
     ;create stack
     xor eax,eax
     mov ss,ax           ;stack 0
-    ;mov sp,0xffff       ;stack offset
+    ;data sp starts at 0xffff
     sti
     
-    ;xor ah,ah          ;eax is already 0
     mov al,0x0D         ;320x200 16 color graphics (EGA,VGA)
     int 0x10
     
@@ -18,20 +17,7 @@ start:
     mov ch,0x20       ;disable cursor
     int 0x10
     
-    ;default data is 0 anyway (probably)
-    ;init data
-    ;mov bx,0x0a         ;10y
-    ;.loopy:
-    ;    mov ax,0x08     ;8x
-    ;    .loopx:
-    ;        push 0x0001
-    ;        dec ax
-    ;        test ax,ax
-    ;        jnz .loopx
-    ;    dec bx
-    ;    test bx,bx
-    ;    jnz .loopy
-    
+    mov [0xf000],dword(0x02)
     call newblock
     mov sp,0xff2f
     
@@ -151,22 +137,51 @@ start:
         jnz .loophitapply
     
     ;clear
-    mov bx,0xffee
+    mov bx,0xfffd   ;bottom line left
     mov dl,0x0a
-    .loopcleary
-        mov cl,0x01 ;filled?
+    .loopcleary     ;for top to bottom
+        xor cl,cl   ;has empty block?
         mov dh,0x08
         .loopclearx1
             mov ax,[bx]
-            add bl,0x02
+            sub bl,0x02
             test ax,ax
-            cmovz cx,ax
+            jnz .lchasblock
+            inc cl
+            .lchasblock
             dec dh
             test dh,dh
             jnz .loopclearx1
-        sub bl,0x10
+            
+        test cl,cl   ;is there an empty block?
+        jnz .noclear
+        push dx
+        push bx
+        ;bl is next line left
+        ;dl is current line y
+        .loopdecliney
+            sub bl,0x10     ;front of this line
+            mov dh,0x08
+            .loopdeclinex
+                add bl,0x02 ;moving back
+                mov ax,[bx] ;take from last line
+                ;xor ax,ax
+                add bl,0x10
+                mov [bx],ax ;put to this line
+                sub bl,0x10 ;inc 1 previous line
+                dec dh
+                test dh,dh
+                jnz .loopdeclinex
+            sub bl,0x10
+            dec dl
+            cmp dl,0x01
+            jne .loopdecliney
+        pop bx
+        pop dx
+        .noclear
+        
         dec dl
-        cmp dl,0x02
+        cmp dl,0x01
         jne .loopcleary
     
     ;newblock
@@ -250,7 +265,14 @@ newblock:
     ;push 0x42
     push dword 0x00430053
     ;push 0x53
-    push 0x02
+    mov ax,[0xf000]
+    push ax
+    inc ax
+    cmp ax,0x07
+    jl .dontrevcol
+    mov al,0x02
+    .dontrevcol
+    mov [0xf000],ax
     mov sp,[0xfe00]
     retn
 
@@ -285,7 +307,6 @@ setactbcd:
     mov dx,0xff3f
     mov cl,0x04
     retn
-
 
 TIMES 510 - ($ - $$) db 0
 DW 0xAA55
