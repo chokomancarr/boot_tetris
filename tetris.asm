@@ -73,8 +73,7 @@ start:
         mov dx,ax
         and dl,0x0f
         
-        mov ah,0x0c
-        mov al,0x0f
+        mov ax,0x0c0f
         xor bh,bh
         int 0x10
         
@@ -86,11 +85,7 @@ start:
     
 .waitinput
     mov word[0xfe10],0x00   ;down command?
-
-    mov ax,0x0b0f
-    int 0x21
-    or al,al
-    jz .waitinput
+    
     xor ah,ah
     int 0x16
     
@@ -101,55 +96,6 @@ start:
     cmp al,0x64 ;d
     je .right
     jmp .waitinput
-
-.hit
-    mov dx,word[0xfe10]
-    test dx,dx
-    jz .waitinput
-    ;apply block
-    call setactbcd
-    .loophitapply
-        call movsim1 ;id in al
-        push bx
-        
-        mov bx,0xff4d
-        push ax
-        shr al,0x04
-        shl al,0x01
-        add bl,al
-        pop ax
-        shl al,0x04
-        add bl,al
-        mov dx,[0xff45]
-        
-        mov word[bx],dx
-        pop bx
-        dec cl
-        test cl,cl
-        jnz .loophitapply
-    ;clear
-    ;mov bx,0xffee
-    ;mov dl,0x0a
-    ;.loopcleary
-    ;    mov dh,0x08
-    ;    .loopclearx1
-    ;        mov ax,[bx]
-    ;        add bl,0x02
-    ;        test ax,ax
-    ;        jz .notfilledline
-    ;        dec dh
-    ;        test dh,dh
-    ;        jnz .loopclearx1
-    ;    sub bl,0x10
-        
-    ;    .notfilledline
-    ;    sub dl
-    ;    cmp dl,0x02
-    ;    jne .loopcleary
-    
-    ;newblock
-    call newblock
-    jmp .draw
 
 .down
     mov word[0xfe10], 0x10
@@ -177,6 +123,55 @@ start:
         call movsim2
         jnz .looprght
     jmp .check
+
+.hit
+    mov dx,word[0xfe10]
+    test dx,dx
+    jz .waitinput
+    ;apply block
+    call setactbcd
+    .loophitapply
+        call movsim1 ;id in al
+        push bx
+        
+        mov bx,0xff4d
+        push ax
+        shr al,0x04
+        shl al,0x01
+        add bl,al
+        pop ax
+        shl al,0x04
+        add bl,al
+        mov dx,[0xff45]
+        
+        mov word[bx],dx
+        pop bx
+        dec cl
+        test cl,cl
+        jnz .loophitapply
+    
+    ;clear
+    mov bx,0xffee
+    mov dl,0x0a
+    .loopcleary
+        mov cl,0x01 ;filled?
+        mov dh,0x08
+        .loopclearx1
+            mov ax,[bx]
+            add bl,0x02
+            test ax,ax
+            cmovz cx,ax
+            dec dh
+            test dh,dh
+            jnz .loopclearx1
+        sub bl,0x10
+        dec dl
+        cmp dl,0x02
+        jne .loopcleary
+    
+    ;newblock
+    call newblock
+    jmp .draw
 
 .apply
     mov bx,0xff3f
